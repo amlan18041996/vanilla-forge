@@ -8,7 +8,10 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preview:cf": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy",
+    "deploy:dry-run": "npm run build && wrangler deploy --dry-run"
   },
   "repository": {
     "type": "git",
@@ -22,7 +25,8 @@
   "homepage": "https://github.com/amlan18041996/javascript-exercises#readme",
   "devDependencies": {
     "tailwindcss": "^3.4.3",
-    "vite": "^8.1.0"
+    "vite": "^8.1.0",
+    "wrangler": "^4.162.0"
   },
   "dependencies": {
     "qrcode": "^1.5.4",

@@ -124,6 +124,25 @@ npm run build
 npm run preview
 ```
 
+### Deploy to Cloudflare
+
+The site is configured as a Cloudflare Worker with static assets (`wrangler.jsonc`). Unknown paths fall back to `index.html`, so deep links like `/projects/calculator` work.
+
+```bash
+# one-time authentication
+npx wrangler login
+
+# build + upload dist/ to Cloudflare
+npm run deploy
+```
+
+Other commands:
+
+- `npm run preview:cf` — build and preview the site in the local Workers runtime (including SPA fallback)
+- `npm run deploy:dry-run` — build and validate the asset upload without deploying
+
+For CI, set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` instead of running `wrangler login`.
+
 ### TypeScript package
 
 The TypeScript sources in `typescript-projects/` are consumed directly by Vite. To compile declarations and run the examples independently:
@@ -182,7 +201,8 @@ vanilla-forge/
 │   └── sql-wasm.wasm              # SQLite WASM used by the Mini-Prisma demo
 ├── postcss.config.js
 ├── tailwind.config.js
-└── vite.config.js
+├── vite.config.js
+└── wrangler.jsonc                 # Cloudflare Workers static-assets + SPA routing
 ```
 
 ## Tech Stack
@@ -193,6 +213,7 @@ vanilla-forge/
 - **CSS3** — Flexbox, Grid, custom properties, `color-mix()`, transitions, backdrop-filter
 - **Tailwind CSS** — utility layer (pre-compiled to `styles/tailwind.css`)
 - **Vite 8** — dev server, module bundling, and production build
+- **Cloudflare Workers + Wrangler** — static asset hosting with SPA fallback
 - **Runtime dependencies** — `qrcode` (QR generation) and `sql.js` (in-browser SQLite)
 
 ## Adding a Project
