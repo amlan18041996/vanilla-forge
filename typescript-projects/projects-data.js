@@ -1,11 +1,22 @@
 export const tsProjects = [
     {
+        id: 'weather',
+        category: 'typescript',
+        title: 'Weather Dashboard',
+        description: 'Look up current conditions and a five-day forecast for any city. Uses typed API responses, runtime validation, abortable requests, and Open-Meteo geocoding and forecast APIs without an API key.',
+        concepts: ['TypeScript Interfaces', 'Runtime Validation', 'Async/Await', 'Fetch API', 'AbortController'],
+        color: '#3178c6',
+        icon: 'cloud-sun',
+        file: 'weather',
+    },
+    {
         id: 'json-schema-validator',
         category: 'typescript',
         title: 'JSON Schema Validator',
         description: 'A runtime JSON validator built in TypeScript that validates data against schema definitions. Features conditional types (InferSchemaType), recursive types (nested object/array schemas), and branded types (Validated<T> for nominal typing).',
         concepts: ['Conditional Types', 'Recursive Types', 'Branded Types', 'Runtime Validation', 'Discriminated Unions'],
         color: '#3178c6',
+        icon: 'braces',
         file: 'json-schema-validator',
         instructions: `<strong>Schema API</strong>
 <ul>
@@ -28,6 +39,7 @@ export const tsProjects = [
         description: 'A declarative form validation library built with TypeScript discriminated unions. Define fields with labels and validation rules, then validate form data with human-readable error messages. Supports text, email, password, number, select, and checkbox fields.',
         concepts: ['Discriminated Unions', 'Runtime Validation', 'Declarative API', 'Error Handling', 'Form Processing'],
         color: '#3178c6',
+        icon: 'clipboard-check',
         file: 'form-validator',
         instructions: `<strong>Field API</strong>
 <ul>
@@ -47,6 +59,7 @@ export const tsProjects = [
         description: 'A tiny type-safe query builder for SQLite built with TypeScript. Features fluent interfaces with `this` typing for method chaining and conditional return types based on selected fields.',
         concepts: ['Conditional Return Types', 'Fluent Interfaces with this Typing', 'Generic Constraints', 'Template Literal Types', 'Type-safe SQL'],
         color: '#3178c6',
+        icon: 'database',
         file: 'mini-prisma',
         instructions: `<strong>Query Builder API</strong>
 <ul>

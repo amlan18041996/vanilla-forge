@@ -4,7 +4,7 @@ export const subjects = [
         title: 'JavaScript',
         badge: 'ES6+',
         badgeClass: 'badge-js',
-        icon: '🟨',
+        iconName: 'javascript',
         introduction: 'JavaScript is a high-level, interpreted programming language that conforms to the ECMAScript specification. It is a core technology of the World Wide Web, alongside HTML and CSS, enabling interactive web pages and is an essential part of web applications. The majority of websites employ JavaScript, and it is supported by all modern web browsers without the need for plugins. JavaScript is a prototype-based, multi-paradigm language that supports event-driven, functional, and imperative programming styles, making it one of the most versatile and widely-used languages in software development today.',
         history: [
             'JavaScript was created in just 10 days in May 1995 by Brendan Eich while he was working at Netscape Communications Corporation. Originally named Mocha, it was quickly renamed to LiveScript and finally JavaScript as a marketing move to capitalize on the popularity of Java. The first version appeared in Netscape Navigator 2.0 in December 1995.',
@@ -41,7 +41,7 @@ export const subjects = [
         title: 'TypeScript',
         badge: 'Strict',
         badgeClass: 'badge-ts',
-        icon: '🔷',
+        iconName: 'typescript',
         introduction: 'TypeScript is a strongly typed programming language that builds on JavaScript, giving you better tooling at any scale. It adds optional static typing, classes, interfaces, generics, enums, and other advanced features on top of JavaScript, compiling down to clean, readable JavaScript that runs anywhere JavaScript runs. TypeScript is developed and maintained by Microsoft and has become one of the most popular languages for large-scale application development, catching type errors at compile time and providing superior IDE support with autocompletion, navigation, and refactoring.',
         history: [
             'TypeScript was first publicly announced in October 2012 and was developed by Microsoft under the leadership of Anders Hejlsberg, the lead architect of C# and creator of Turbo Pascal. The initial version, 0.8, was released in November 2012 and supported basic type annotations, classes, and interfaces. The language was designed from the ground up to be a strict superset of JavaScript, meaning any valid JavaScript code is also valid TypeScript code.',

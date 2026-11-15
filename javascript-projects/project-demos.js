@@ -1,3 +1,5 @@
+import { icon } from "../icons/index.js";
+
 const demos = {};
 
 demos.calculator = {
@@ -550,6 +552,56 @@ demos['rock-paper-scissors'] = {
     },
 };
 
+demos['qr-code-generator'] = {
+    html: `
+        <form id="qr-generator-form" class="flex flex-col gap-3">
+            <label for="qr-content" class="font-medium text-sm">Content to encode</label>
+            <textarea id="qr-content" class="form-element" rows="4" placeholder="Enter text, a URL, or other details..." required></textarea>
+            <div class="flex items-center gap-3 flex-wrap">
+                <button type="submit" class="btn primary">Generate QR code</button>
+                <a id="qr-download" class="btn secondary" href="#" download="qr-code.png" hidden>Download PNG</a>
+            </div>
+            <p id="qr-status" class="text-sm text-gray-600" role="status" aria-live="polite"></p>
+            <div id="qr-preview" class="flex justify-center rounded border bg-white p-4" hidden>
+                <canvas id="qr-canvas" aria-label="Generated QR code"></canvas>
+            </div>
+        </form>
+    `,
+    async init(container) {
+        const { generateQRCode } = await import("./qr-code-generator.js");
+        const form = container.querySelector('#qr-generator-form');
+        const input = container.querySelector('#qr-content');
+        const canvas = container.querySelector('#qr-canvas');
+        const preview = container.querySelector('#qr-preview');
+        const download = container.querySelector('#qr-download');
+        const status = container.querySelector('#qr-status');
+
+        form.addEventListener('submit', async event => {
+            event.preventDefault();
+            const content = input.value.trim();
+            if (!content) {
+                status.textContent = 'Enter some content to generate a QR code.';
+                input.focus();
+                return;
+            }
+
+            preview.hidden = true;
+            download.hidden = true;
+            status.textContent = 'Generating QR code...';
+
+            try {
+                await generateQRCode(canvas, content);
+                preview.hidden = false;
+                download.href = canvas.toDataURL('image/png');
+                download.hidden = false;
+                status.textContent = 'QR code generated successfully.';
+            } catch (error) {
+                status.textContent = `Could not generate QR code: ${error.message}`;
+            }
+        });
+    },
+};
+
 demos.carousel = {
     html: `
         <div class="carousel-demo-wrapper">
@@ -1064,6 +1116,112 @@ demos['json-schema-validator'] = {
     },
 };
 
+demos.weather = {
+    html: `
+        <form id="weather-form" class="flex flex-col gap-3">
+            <div class="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+                <div>
+                    <label for="weather-city" class="mb-1 block font-medium text-sm">City</label>
+                    <input id="weather-city" class="form-element" type="search" placeholder="e.g. Tokyo" autocomplete="off" required />
+                </div>
+                <div>
+                    <label for="weather-unit" class="mb-1 block font-medium text-sm">Temperature</label>
+                    <select id="weather-unit" class="form-element">
+                        <option value="celsius">Celsius (°C)</option>
+                        <option value="fahrenheit">Fahrenheit (°F)</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn primary" id="weather-submit">Get weather</button>
+            </div>
+            <p id="weather-status" class="text-sm text-gray-600" role="status" aria-live="polite"></p>
+            <section id="weather-result" class="flex flex-col gap-4" aria-label="Weather forecast" hidden></section>
+        </form>
+    `,
+    async init(container) {
+        const { getWeather } = await import("../typescript-projects/src/weather/index.ts");
+        const form = container.querySelector('#weather-form');
+        const cityInput = container.querySelector('#weather-city');
+        const unitInput = container.querySelector('#weather-unit');
+        const submitButton = container.querySelector('#weather-submit');
+        const status = container.querySelector('#weather-status');
+        const result = container.querySelector('#weather-result');
+        let activeController = null;
+
+        form.addEventListener('submit', async event => {
+            event.preventDefault();
+            const city = cityInput.value.trim();
+            if (!city) {
+                status.textContent = 'Enter a city to see its weather.';
+                cityInput.focus();
+                return;
+            }
+
+            activeController?.abort();
+            const requestController = new AbortController();
+            activeController = requestController;
+            submitButton.disabled = true;
+            result.hidden = true;
+            result.replaceChildren();
+            status.textContent = 'Looking up the forecast...';
+
+            try {
+                const weather = await getWeather(city, unitInput.value, requestController.signal);
+                if (activeController !== requestController) return;
+
+                const current = document.createElement('article');
+                current.className = 'rounded-lg border bg-white p-4';
+                const location = document.createElement('h3');
+                location.className = 'text-lg font-semibold';
+                location.textContent = weather.location;
+                const summary = document.createElement('p');
+                summary.className = 'mt-2 text-2xl font-bold';
+                summary.textContent = `${weather.current.icon} ${weather.current.temperature}°${weather.temperatureUnit}`;
+                const condition = document.createElement('p');
+                condition.className = 'text-sm text-gray-600';
+                condition.textContent = weather.current.condition;
+                current.append(location, summary, condition);
+
+                const details = document.createElement('p');
+                details.className = 'mt-3 text-sm text-gray-600';
+                details.textContent = `Feels like ${weather.current.apparentTemperature}°${weather.temperatureUnit} · Humidity ${weather.current.humidity}% · Wind ${weather.current.windSpeed} ${weather.windUnit}`;
+                current.append(details);
+
+                const forecast = document.createElement('div');
+                forecast.className = 'grid grid-cols-2 gap-2 sm:grid-cols-5';
+                for (const day of weather.forecast) {
+                    const card = document.createElement('article');
+                    card.className = 'rounded-lg border bg-white p-3 text-center text-sm';
+                    const date = document.createElement('p');
+                    date.className = 'font-medium';
+                    date.textContent = new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short' });
+                    const icon = document.createElement('p');
+                    icon.className = 'my-1 text-xl';
+                    icon.textContent = day.icon;
+                    icon.setAttribute('aria-label', day.condition);
+                    const temperatures = document.createElement('p');
+                    temperatures.textContent = `${day.high}° / ${day.low}°`;
+                    card.append(date, icon, temperatures);
+                    forecast.append(card);
+                }
+
+                result.append(current, forecast);
+                result.hidden = false;
+                status.textContent = 'Forecast updated.';
+            } catch (error) {
+                if (activeController !== requestController) return;
+                status.textContent = error.name === 'AbortError'
+                    ? 'Weather lookup cancelled.'
+                    : error.message;
+            } finally {
+                if (activeController === requestController) {
+                    activeController = null;
+                    submitButton.disabled = false;
+                }
+            }
+        });
+    },
+};
+
 demos['mini-prisma'] = {
     html: `<div id="mini-prisma-demo"><p class="text-gray-500 text-center py-8">Loading SQLite...</p></div>`,
     async init(container) {
@@ -1258,7 +1416,7 @@ demos['form-validator'] = {
             const successEl = container.querySelector('#fv-success');
             successEl.style.display = 'block';
             successEl.innerHTML = `
-                <div class="fv-success-icon">&#10003;</div>
+                <div class="fv-success-icon">${icon('check')}</div>
                 <div class="fv-success-content">
                     <strong>Account created successfully!</strong>
                     <pre class="fv-success-data">${JSON.stringify(result.data, null, 2)}</pre>
