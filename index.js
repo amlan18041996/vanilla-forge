@@ -1,17 +1,13 @@
 import { scrollToTop } from "./utilities/helpers.js";
-import { projects, stats } from "./javascript-projects/projects-data.js";
-import { tsProjects, tsStats } from "./typescript-projects/projects-data.js";
+import { projects } from "./javascript-projects/projects-data.js";
+import { tsProjects } from "./typescript-projects/projects-data.js";
 import { subjects, topicLabels } from "./javascript-projects/about-data.js";
 import demos from "./javascript-projects/project-demos.js";
+import { icon, mountIconSprite } from "./icons/index.js";
+
+mountIconSprite();
 
 const allProjects = [...projects, ...tsProjects];
-
-const allStats = {
-    projectsDelivered: stats.projectsDelivered + tsStats.projectsDelivered,
-    conceptsCovered: stats.conceptsCovered + tsStats.conceptsCovered,
-    conceptsInProgress: stats.conceptsInProgress,
-    upcomingConcepts: stats.upcomingConcepts,
-};
 
 /* ===================== NAVIGATION ===================== */
 
@@ -22,38 +18,34 @@ const pages = {
     projects: document.querySelector('#page-projects'),
 };
 
-function getPath(page, subroute) {
+function getPath(page, projectId) {
     if (page === 'home') return '/';
-    if (page === 'projects') return subroute ? `/projects/${subroute}` : '/projects';
+    if (page === 'projects') return projectId ? `/projects/${projectId}` : '/projects';
     return `/${page}`;
 }
 
 function getRouteFromPath(path) {
     const parts = path.split('/').filter(Boolean);
-    if (parts.length === 0) return { page: 'home', subroute: null };
-    if (parts[0] === 'projects') return { page: 'projects', subroute: parts[1] || null };
-    if (pages[parts[0]]) return { page: parts[0], subroute: null };
-    return { page: 'home', subroute: null };
+    if (parts.length === 0) return { page: 'home', projectId: null };
+    if (parts[0] === 'projects') return { page: 'projects', projectId: parts[1] || null };
+    if (pages[parts[0]]) return { page: parts[0], projectId: null };
+    return { page: 'home', projectId: null };
 }
 
-function showPage(page, subroute) {
+function showPage(page, projectId) {
     Object.entries(pages).forEach(([key, el]) => el.classList.toggle('active', key === page));
     navLinks.forEach(a => a.classList.toggle('active', a.dataset.page === page));
 
     if (page === 'projects') {
-        if (subroute && categoryInfo[subroute]) {
-            activateCategory(subroute);
-        } else {
-            document.querySelector('#project-categories').style.display = '';
-            document.querySelector('#projects-layout').style.display = 'none';
-            cleanupDemo();
-        }
+        if (projectId) showProject(projectId);
+        else showProjectsOverview();
     }
 }
 
-function navigate(page, subroute) {
-    history.pushState({ page, subroute }, '', getPath(page, subroute));
-    showPage(page, subroute);
+function navigate(page, projectId) {
+    history.pushState({ page, projectId }, '', getPath(page, projectId));
+    showPage(page, projectId);
+    window.scrollTo(0, 0);
 }
 
 navLinks.forEach(a => a.addEventListener('click', e => {
@@ -62,29 +54,14 @@ navLinks.forEach(a => a.addEventListener('click', e => {
 }));
 
 window.addEventListener('popstate', () => {
-    const { page, subroute } = getRouteFromPath(window.location.pathname);
-    showPage(page, subroute);
+    const { page, projectId } = getRouteFromPath(window.location.pathname);
+    showPage(page, projectId);
 });
 
 /* ===================== HOME STATS ===================== */
 
-const iconMap = {
-    projectsDelivered: { icon: '📦', bg: '#eef2ff' },
-    conceptsCovered: { icon: '📚', bg: '#f0fdf4' },
-    conceptsInProgress: { icon: '⚙️', bg: '#fffbeb' },
-    upcomingConcepts: { icon: '🚀', bg: '#fdf2f8' },
-};
-
-function renderStats() {
-    const grid = document.querySelector('#stats-grid');
-    grid.innerHTML = Object.entries(allStats).map(([key, value]) => `
-        <div class="stat-card">
-            <div class="stat-icon" style="background:${iconMap[key]?.bg || '#eef2ff'}">${iconMap[key]?.icon || '📊'}</div>
-            <div class="stat-number">${value}</div>
-            <div class="stat-label">${key.replace(/([A-Z])/g, ' $1').trim()}</div>
-        </div>
-    `).join('');
-}
+/* Stat cards are rendered in index.html; keep the markup there so the home
+   page paints before JavaScript runs. */
 
 /* ===================== PROJECT CATEGORIES & NAVIGATION ===================== */
 
@@ -94,55 +71,194 @@ const categoryInfo = {
     libraries: { title: 'Libraries' },
 };
 
-function getProjectCategory(id) {
-    const p = allProjects.find(pr => pr.id === id);
-    return p ? p.category : null;
+function getProject(id) {
+    return allProjects.find(p => p.id === id);
 }
 
-function renderCategoryCards() {
-    for (const [cat] of Object.entries(categoryInfo)) {
-        const count = allProjects.filter(p => p.category === cat).length;
-        const el = document.getElementById(`count-${cat}`);
-        if (el) el.textContent = `${count} projects`;
-    }
+function projectCardMarkup(p) {
+    return `
+        <a class="project-card" href="/projects/${p.id}"
+           data-project-id="${p.id}"
+           style="--project-color:${p.color}">
+            <span class="project-card-icon" aria-hidden="true">
+                ${icon(p.icon || 'archive', { className: 'icon' })}
+            </span>
+            <span class="project-card-body">
+                <span class="project-card-title">${p.title}</span>
+                <span class="project-card-desc">${p.description}</span>
+            </span>
+            <span class="project-card-footer">
+                <span class="project-card-concepts">${p.concepts.length} concepts</span>
+                <span class="project-card-cta" aria-hidden="true">View project →</span>
+            </span>
+        </a>
+    `;
+}
 
-    document.querySelector('#project-categories').addEventListener('click', e => {
-        const card = e.target.closest('.category-card');
-        if (card) navigate('projects', card.dataset.category);
+let activeProjectFilter = 'all';
+
+function renderProjectFilters() {
+    const container = document.querySelector('#project-filters');
+    if (!container) return;
+
+    const filters = [
+        { key: 'all', title: 'All' },
+        ...Object.entries(categoryInfo).map(([key, info]) => ({ key, title: info.title })),
+    ];
+
+    container.innerHTML = filters.map(({ key, title }) => {
+        const count = key === 'all'
+            ? allProjects.length
+            : allProjects.filter(p => p.category === key).length;
+        return `
+            <button type="button" class="project-filter" data-filter="${key}"
+                    aria-pressed="false">
+                <span class="project-filter-label">${title}</span>
+                <span class="project-filter-badge">${count}</span>
+            </button>
+        `;
+    }).join('');
+}
+
+function applyProjectFilter(filter) {
+    activeProjectFilter = filter;
+
+    document.querySelectorAll('.project-filter').forEach(btn => {
+        const isActive = btn.dataset.filter === filter;
+        btn.classList.toggle('is-active', isActive);
+        btn.setAttribute('aria-pressed', String(isActive));
     });
 
-    document.querySelector('#back-to-categories').addEventListener('click', () => navigate('projects'));
+    document.querySelectorAll('.project-group').forEach(group => {
+        group.hidden = filter !== 'all' && group.dataset.category !== filter;
+    });
 }
 
-function activateCategory(category) {
-    document.querySelector('#project-categories').style.display = 'none';
-    const layout = document.querySelector('#projects-layout');
-    layout.style.display = '';
+function renderProjectsOverview() {
+    const container = document.querySelector('#project-groups');
+    if (!container) return;
 
-    document.querySelector('#sidebar-title').textContent = categoryInfo[category]?.title || 'Projects';
+    renderProjectFilters();
 
-    renderProjectListForCategory(category);
+    container.innerHTML = Object.entries(categoryInfo).map(([key]) => {
+        const items = allProjects.filter(p => p.category === key);
+        return `
+            <section class="project-group" id="project-group-${key}" data-category="${key}">
+                <div class="project-card-grid">
+                    ${items.map(projectCardMarkup).join('')}
+                </div>
+            </section>
+        `;
+    }).join('');
 
-    document.querySelector('#project-placeholder').style.display = '';
-    document.querySelector('#project-detail').style.display = 'none';
-    cleanupDemo();
+    applyProjectFilter(activeProjectFilter);
 }
 
-function backToCategories() {
+function initProjects() {
+    renderProjectsOverview();
+
+    document.querySelector('#project-filters')?.addEventListener('click', e => {
+        const button = e.target.closest('.project-filter');
+        if (button) applyProjectFilter(button.dataset.filter);
+    });
+
+    document.querySelector('#page-projects')?.addEventListener('click', e => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
+        const back = e.target.closest('.project-back-link');
+        if (back) {
+            e.preventDefault();
+            navigate('projects');
+            return;
+        }
+
+        const card = e.target.closest('.project-card');
+        if (card) {
+            e.preventDefault();
+            navigate('projects', card.dataset.projectId);
+        }
+    });
+
+    document.querySelector('.project-tabs')?.addEventListener('click', e => {
+        const btn = e.target.closest('.tab-btn');
+        if (btn) switchTab(btn.dataset.tab);
+    });
+}
+
+/* ===================== PROJECT VIEWS ===================== */
+
+function showProjectsOverview() {
     document.querySelector('#project-categories').style.display = '';
-    document.querySelector('#projects-layout').style.display = 'none';
+    document.querySelector('#project-detail-view').style.display = 'none';
     cleanupDemo();
 }
 
-function renderProjectListForCategory(category) {
-    const list = document.querySelector('#project-list');
-    const filtered = allProjects.filter(p => p.category === category);
-    list.innerHTML = filtered.map(p => `
-        <li data-id="${p.id}">
-            <span class="dot" style="background:${p.color}"></span>
-            ${p.title}
-        </li>
-    `).join('');
+function showProject(id) {
+    const project = getProject(id);
+
+    if (!project) {
+        showProjectsOverview();
+        return;
+    }
+
+    const info = categoryInfo[project.category];
+
+    document.querySelector('#project-categories').style.display = 'none';
+    document.querySelector('#project-detail-view').style.display = '';
+
+    currentProjectId = id;
+
+    document.querySelector('#project-hero').style.setProperty('--project-color', project.color);
+    document.querySelector('#detail-icon').innerHTML =
+        icon(project.icon || 'archive', { className: 'icon' });
+    document.querySelector('#detail-category').textContent = info.title;
+    document.querySelector('#detail-title').textContent = project.title;
+    document.querySelector('#detail-desc').textContent = project.description;
+
+    document.querySelector('#detail-concepts').innerHTML =
+        project.concepts.map(c => `<span class="concept-tag">${c}</span>`).join('');
+
+    const instrEl = document.querySelector('#detail-instructions');
+    if (project.instructions) {
+        instrEl.style.display = 'block';
+        instrEl.className = 'project-instructions';
+        instrEl.innerHTML = project.instructions;
+    } else {
+        instrEl.style.display = 'none';
+        instrEl.innerHTML = '';
+    }
+
+    const backLink = document.querySelector('#detail-back-link');
+    backLink.href = '/projects';
+    document.querySelector('#detail-back-label').textContent = 'All projects';
+
+    renderRelatedProjects(project.category, id);
+    switchTab('details');
+
+    const inner = document.querySelector('#demo-inner');
+    const demo = demos[id];
+    inner.innerHTML = demo
+        ? demo.html
+        : '<p class="text-gray-500 text-center py-8">Demo not available</p>';
+    demoInitTracker[id] = false;
+}
+
+function renderRelatedProjects(category, id) {
+    const info = categoryInfo[category];
+    const related = allProjects
+        .filter(p => p.category === category && p.id !== id)
+        .slice(0, 4);
+
+    const section = document.querySelector('#related-projects');
+    if (!related.length) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = '';
+    document.querySelector('#related-title').textContent =
+        `Try other popular projects from ${info.title}`;
+    document.querySelector('#related-grid').innerHTML = related.map(projectCardMarkup).join('');
 }
 
 /* ===================== PROJECT DETAIL WITH TABS ===================== */
@@ -155,51 +271,12 @@ function cleanupDemo() {
     demoInitTracker = {};
 }
 
-function showProject(id) {
-    currentProjectId = id;
-    document.querySelectorAll('#project-list li').forEach(li =>
-        li.classList.toggle('active', li.dataset.id === id));
-
-    const project = allProjects.find(p => p.id === id);
-    if (!project) return;
-
-    document.querySelector('#project-placeholder').style.display = 'none';
-    const detail = document.querySelector('#project-detail');
-    detail.style.display = 'block';
-    document.querySelector('#detail-title').textContent = project.title;
-
-    document.querySelector('#detail-desc').textContent = project.description;
-    document.querySelector('#detail-concepts').innerHTML =
-        project.concepts.map(c => `<span class="concept-tag">${c}</span>`).join('');
-
-    const instrEl = document.querySelector('#detail-instructions');
-    if (project.instructions) {
-        instrEl.style.display = 'block';
-        instrEl.className = 'project-instructions';
-        instrEl.innerHTML = project.instructions;
-    } else {
-        instrEl.style.display = 'none';
-    }
-
-    switchTab('details');
-
-    const inner = document.querySelector('#demo-inner');
-    const demo = demos[id];
-    if (demo) {
-        inner.innerHTML = demo.html;
-    } else {
-        inner.innerHTML = `<p class="text-gray-500 text-center py-8">Demo not available</p>`;
-    }
-    demoInitTracker[id] = false;
-
-    if (window.innerWidth < 768) {
-        document.querySelector('#project-sidebar').scrollIntoView({ behavior: 'smooth' });
-    }
-}
-
 function switchTab(tab) {
-    document.querySelectorAll('.tab-btn').forEach(btn =>
-        btn.classList.toggle('active', btn.dataset.tab === tab));
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        const isActive = btn.dataset.tab === tab;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-selected', String(isActive));
+    });
     document.querySelectorAll('.tab-panel').forEach(p =>
         p.classList.toggle('active', p.id === `tab-${tab}`));
 
@@ -223,6 +300,44 @@ function switchTab(tab) {
 
 const searchInput = document.querySelector('#search-input');
 const searchResults = document.querySelector('#search-results');
+const mobileSearchToggle = document.querySelector('#mobile-search-toggle');
+const mobileSearchClose = document.querySelector('#mobile-search-close');
+const searchWrapper = document.querySelector('#search-wrapper');
+const searchBackdrop = document.querySelector('#search-backdrop');
+const header = document.querySelector('header');
+
+function setMobileSearchOpen(isOpen) {
+    searchWrapper?.classList.toggle('mobile-open', isOpen);
+    searchBackdrop?.classList.toggle('search-backdrop-active', isOpen);
+    header?.classList.toggle('mobile-search-active', isOpen);
+    mobileSearchToggle?.setAttribute('aria-expanded', String(isOpen));
+    searchBackdrop?.setAttribute('aria-hidden', String(!isOpen));
+    if (isOpen) {
+        setTimeout(() => {
+            if (searchWrapper?.classList.contains('mobile-open')) searchInput?.focus();
+        }, 350);
+    }
+    else searchResults?.classList.remove('show');
+}
+
+mobileSearchToggle?.addEventListener('click', () => setMobileSearchOpen(true));
+mobileSearchClose?.addEventListener('click', () => {
+    setMobileSearchOpen(false);
+    mobileSearchToggle?.focus();
+});
+document.querySelector('.mobile-search-submit')?.addEventListener('click', () => {
+    searchInput?.dispatchEvent(new Event('input', { bubbles: true }));
+});
+searchBackdrop?.addEventListener('click', () => {
+    setMobileSearchOpen(false);
+    mobileSearchToggle?.focus();
+});
+searchInput?.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+        setMobileSearchOpen(false);
+        mobileSearchToggle?.focus();
+    }
+});
 
 searchInput?.addEventListener('input', () => {
     const q = searchInput.value.toLowerCase().trim();
@@ -243,32 +358,96 @@ searchInput?.addEventListener('input', () => {
 searchResults?.addEventListener('click', e => {
     const item = e.target.closest('.result-item');
     if (item && item.dataset.id) {
-        const cat = getProjectCategory(item.dataset.id);
-        navigate('projects', cat);
-        showProject(item.dataset.id);
+        navigate('projects', item.dataset.id);
         searchInput.value = '';
-        searchResults.classList.remove('show');
+        setMobileSearchOpen(false);
     }
 });
 
 document.addEventListener('click', e => {
-    if (!e.target.closest('.search-wrapper')) searchResults?.classList.remove('show');
+    if (!e.target.closest('.search-wrapper') && !e.target.closest('.mobile-search-toggle')) {
+        searchResults?.classList.remove('show');
+        if (window.matchMedia('(max-width: 640px)').matches) setMobileSearchOpen(false);
+    }
 });
 
 /* ===================== ABOUT ===================== */
 
 function renderSubjectList() {
     const list = document.querySelector('#subject-list');
+    const select = document.querySelector('#about-subject-select');
     list.innerHTML = subjects.map(s => `
         <li data-subject="${s.id}">
-            <span>${s.icon}</span>
+            ${icon(s.iconName, { className: `subject-icon subject-icon--${s.id}` })}
             ${s.title}
         </li>
     `).join('');
     list.addEventListener('click', e => {
         const li = e.target.closest('li');
-        if (li) showSubject(li.dataset.subject);
+        if (li) {
+            showSubject(li.dataset.subject);
+            select.value = li.dataset.subject;
+        }
     });
+    select.addEventListener('change', () => {
+        if (select.value) showSubject(select.value);
+        else showAboutOverview();
+    });
+}
+
+function renderAboutSectionNav(sections) {
+    const nav = document.querySelector('#about-section-links');
+    nav.innerHTML = sections.map(({ id, label }) => `
+        <button type="button" data-jump="${id}" aria-controls="${id}">${label}</button>
+    `).join('');
+}
+
+function showAboutOverview() {
+    document.querySelectorAll('#subject-list li').forEach(li => li.classList.remove('active'));
+    document.querySelector('#about-subject-select').value = '';
+    document.querySelector('#about-detail').innerHTML = `
+        <div class="subject-header">
+            ${icon('javascript', { className: 'subject-icon subject-icon--javascript' })}
+            <h3>JavaScript &amp; TypeScript</h3>
+            <span class="badge badge-ts">Compare</span>
+        </div>
+        <section id="about-overview">
+            <div class="section-title">Two languages, one ecosystem</div>
+            <p class="intro-text">TypeScript builds on JavaScript with a static type system. TypeScript code is checked and compiled to JavaScript, which is what browsers and JavaScript runtimes execute. Choose based on your project's scale, tooling, and need for type checks—not runtime performance.</p>
+        </section>
+        <section id="about-differences">
+            <div class="section-title">Key differences</div>
+            <div class="table-wrap">
+                <table class="comparison-table">
+                    <thead><tr><th scope="col">Aspect</th><th scope="col">JavaScript</th><th scope="col">TypeScript</th></tr></thead>
+                    <tbody>
+                        <tr><th scope="row">Types</th><td>Dynamic; many type errors appear at runtime.</td><td>Static checks catch many mistakes during development.</td></tr>
+                        <tr><th scope="row">Run environment</th><td>Runs directly in browsers and JS runtimes.</td><td>Usually compiled to JavaScript before it runs.</td></tr>
+                        <tr><th scope="row">Tooling</th><td>Flexible setup with editor support available.</td><td>Types improve autocomplete, navigation, and refactoring.</td></tr>
+                        <tr><th scope="row">Getting started</th><td>No compile step or type definitions required.</td><td>Needs TypeScript configuration and a build/type-check step.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <section id="about-uses">
+            <div class="section-title">When to use each</div>
+            <div class="language-uses">
+                <article class="language-use-card">
+                    <h4>JavaScript</h4>
+                    <p>Great for browser interactions, small scripts, quick prototypes, and projects where minimal setup matters. It is also the runtime language for web frontends and many server-side applications.</p>
+                </article>
+                <article class="language-use-card">
+                    <h4>TypeScript</h4>
+                    <p>Useful for larger or long-lived applications, shared codebases, APIs, and teams that benefit from explicit contracts and compile-time checks. It helps make refactoring and collaboration safer.</p>
+                </article>
+            </div>
+        </section>
+    `;
+    renderAboutSectionNav([
+        { id: 'about-overview', label: 'Overview' },
+        { id: 'about-differences', label: 'Key differences' },
+        { id: 'about-uses', label: 'When to use each' },
+    ]);
 }
 
 function showSubject(id) {
@@ -277,40 +456,26 @@ function showSubject(id) {
     const subject = subjects.find(s => s.id === id);
     if (!subject) return;
 
-    document.querySelector('#about-placeholder').style.display = 'none';
-    const detail = document.querySelector('#about-detail');
-    detail.style.display = 'block';
-
-    const sectionsHtml = subject.history.map((_, i) =>
-        `<a data-jump="history-${i}">History Pt ${i + 1}</a>`
-    ).join('') + '<a data-jump="topics">Topics</a>';
-
-    detail.innerHTML = `
+    document.querySelector('#about-detail').innerHTML = `
         <div class="subject-header">
-            <span style="font-size:1.5rem">${subject.icon}</span>
+            ${icon(subject.iconName, { className: `subject-icon subject-icon--${subject.id}` })}
             <h3>${subject.title}</h3>
             <span class="badge ${subject.badgeClass}">${subject.badge}</span>
         </div>
 
-        <div class="about-inner-nav">
-            <a data-jump="intro">Introduction</a>
-            ${subject.history.map((_, i) => `<a data-jump="history-${i}">History</a>`).filter((v, i, a) => a.indexOf(v) === i).join('')}
-            <a data-jump="topics">Topics</a>
-        </div>
-
-        <div id="about-intro">
+        <section id="about-intro">
             <div class="section-title">Introduction</div>
             <p class="intro-text">${subject.introduction}</p>
-        </div>
+        </section>
 
-        <div id="about-history">
+        <section id="about-history">
             <div class="section-title">History</div>
             <div class="history-text">
-                ${subject.history.map((p, i) => `<p id="history-${i}">${p}</p>`).join('')}
+                ${subject.history.map(p => `<p>${p}</p>`).join('')}
             </div>
-        </div>
+        </section>
 
-        <div id="about-topics">
+        <section id="about-topics">
             <div class="section-title">Topics</div>
             <div class="topics-grid">
                 ${Object.entries(subject.topics).map(([level, items]) => `
@@ -323,40 +488,32 @@ function showSubject(id) {
                     </div>
                 `).join('')}
             </div>
-        </div>
-
-        <div class="section-links">
-            <span style="font-size:0.75rem;color:var(--text-muted);font-weight:500">Jump to:</span>
-            ${sectionsHtml}
-        </div>
+        </section>
     `;
 
-    detail.querySelectorAll('[data-jump]').forEach(el => {
-        el.addEventListener('click', () => {
-            const target = document.getElementById(el.dataset.jump);
-            if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
-    });
+    renderAboutSectionNav([
+        { id: 'about-intro', label: 'Introduction' },
+        { id: 'about-history', label: 'History' },
+        { id: 'about-topics', label: 'Topics' },
+    ]);
 }
 
 /* ===================== INIT ===================== */
 
 function init() {
-    renderCategoryCards();
+    initProjects();
     renderSubjectList();
+    showAboutOverview();
 
-    document.querySelector('.project-tabs')?.addEventListener('click', e => {
-        const btn = e.target.closest('.tab-btn');
-        if (btn) switchTab(btn.dataset.tab);
+    document.querySelector('#about-section-links')?.addEventListener('click', e => {
+        const button = e.target.closest('button[data-jump]');
+        if (!button) return;
+        const target = document.getElementById(button.dataset.jump);
+        target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
-    document.querySelector('#project-list')?.addEventListener('click', e => {
-        const li = e.target.closest('li');
-        if (li) showProject(li.dataset.id);
-    });
-
-    const { page, subroute } = getRouteFromPath(window.location.pathname);
-    showPage(page, subroute);
+    const { page, projectId } = getRouteFromPath(window.location.pathname);
+    showPage(page, projectId);
 
     window.onscroll = function () {
         const scrollTop = document.getElementById('scroll-top');

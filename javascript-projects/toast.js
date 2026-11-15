@@ -1,4 +1,5 @@
 import { button, div } from "../utilities/dom-builder.js";
+import { icon } from "../icons/index.js";
 
 const DEFAULT_OPTIONS = {
     autoClose: 5000,
@@ -161,7 +162,7 @@ export default function Toast(options) {
         type: 'button',
         class: 'w-6 h-6 inline-flex items-center justify-center ms-auto -mx-1.5 -my-1.5 p-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 hover:bg-gray-100'
     });
-    closeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 fill-current" viewBox="0 0 16 16"><path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/></svg>';
+    closeBtn.innerHTML = icon('close', { className: 'w-4 h-4' });
     checker.toastElem = div(
         { class: 'toast flex p-4' },
         div({ class: 'ms-3 text-sm font-normal' }),

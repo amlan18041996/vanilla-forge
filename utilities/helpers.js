@@ -15,7 +15,7 @@ export function scrollToTop() {
     const position =
         document.body.scrollTop || document.documentElement.scrollTop;
     if (position) {
-        window.scrollBy(0, -Math.max(1, Math.floor(position / 10)));
+        window.scrollBy(0, -Math.max(1, Math.floor(position / 2)));
         scrollAnimation = setTimeout(() => scrollToTop(), 10);
     } else clearTimeout(scrollAnimation);
 }
